@@ -2,10 +2,10 @@ package pwd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math"
-	"path"
 	"path/filepath"
 	"sync"
 	"time"
@@ -18,6 +18,18 @@ import (
 )
 
 var preparedSessions = map[string]bool{}
+
+type AccessDeniedError struct {
+	Err error
+}
+
+func (u *AccessDeniedError) Error() string {
+	return fmt.Sprintf("Acess denied error: %s", u.Err.Error())
+}
+
+func (u *AccessDeniedError) Unwrap() error {
+	return u.Err
+}
 
 type sessionBuilderWriter struct {
 	sessionId string
@@ -33,6 +45,7 @@ type SessionSetupConf struct {
 	Instances      []SessionSetupInstanceConf `json:"instances"`
 	PlaygroundFQDN string
 	DindVolumeSize string
+	Privileged     bool
 }
 
 type SessionSetupInstanceConf struct {
@@ -48,8 +61,13 @@ type SessionSetupInstanceConf struct {
 func (p *pwd) SessionNew(ctx context.Context, config types.SessionConfig) (*types.Session, error) {
 	defer observeAction("SessionNew", time.Now())
 
-	if u, err := p.storage.UserGet(config.UserId); err == nil && u.IsBanned {
-		return nil, fmt.Errorf("User %s is banned\n", config.UserId)
+	// Annonymous users should be also allowed to login
+	if config.UserId != "" {
+		if _, err := p.UserGet(config.UserId); errors.Is(err, userBannedError) {
+			return nil, &AccessDeniedError{err}
+		} else if err != nil {
+			return nil, err
+		}
 	}
 
 	s := &types.Session{}
@@ -170,7 +188,7 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 
 	s.Ready = false
 	p.event.Emit(event.SESSION_READY, s.Id, false)
-	i, err := p.InstanceNew(s, types.InstanceConfig{ImageName: s.ImageName, PlaygroundFQDN: s.Host, DindVolumeSize: "5G"})
+	i, err := p.InstanceNew(s, types.InstanceConfig{ImageName: s.ImageName, PlaygroundFQDN: s.Host, DindVolumeSize: "5G", Privileged: true})
 	if err != nil {
 		log.Printf("Error creating instance for stack [%s]: %s\n", s.Stack, err)
 		return err
@@ -183,10 +201,6 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 		return err
 	}
 
-	fileName = path.Base(s.Stack)
-	file := fmt.Sprintf("/var/run/pwd/uploads/%s", fileName)
-	cmd := fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
-
 	w := sessionBuilderWriter{sessionId: s.Id, event: p.event}
 
 	dockerClient, err := p.dockerFactory.GetForSession(s)
@@ -194,6 +208,11 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 		log.Println(err)
 		return err
 	}
+
+	dockerClient.DindDaemonPing(i.Name)
+
+	file := fmt.Sprintf("/var/run/pwd/uploads/%s", fileName)
+	cmd := fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
 
 	code, err := dockerClient.ExecAttach(i.Name, []string{"sh", "-c", cmd}, &w)
 	if err != nil {
@@ -252,6 +271,7 @@ func (p *pwd) SessionSetup(session *types.Session, sconf SessionSetupConf) error
 				Type:           conf.Type,
 				Tls:            conf.Tls,
 				DindVolumeSize: sconf.DindVolumeSize,
+				Privileged:     sconf.Privileged,
 			}
 			i, err := p.InstanceNew(session, instanceConf)
 			if err != nil {

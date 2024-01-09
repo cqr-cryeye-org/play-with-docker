@@ -89,7 +89,7 @@ func (s *scheduler) updatePlaygrounds() {
 
 func (s *scheduler) schedulePlaygroundsUpdate() {
 	s.updatePlaygrounds()
-	s.ticker = time.NewTicker(time.Minute * 5)
+	s.ticker = time.NewTicker(time.Second * 30)
 	go func() {
 		for range s.ticker.C {
 			s.updatePlaygrounds()
@@ -98,7 +98,7 @@ func (s *scheduler) schedulePlaygroundsUpdate() {
 }
 
 func (s *scheduler) getMatchedTasks(playground *types.Playground) []Task {
-	matchedTasks := []Task{}
+	var matchedTasks []Task
 	for _, expr := range playground.Tasks {
 		for _, task := range s.tasks {
 			if expr == task.Name() {

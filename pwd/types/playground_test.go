@@ -11,11 +11,11 @@ import (
 
 func TestPlayground_Extras_GetInt(t *testing.T) {
 	p := Playground{
-		Id:     uuid.NewV4().String(),
-		Domain: "localhost",
+		Id:                       uuid.NewV4().String(),
+		Domain:                   "localhost",
 		DefaultDinDInstanceImage: "franel/dind",
 		AllowWindowsInstances:    false,
-		DefaultSessionDuration:   time.Hour * 4,
+		DefaultSessionDuration:   time.Hour * 24,
 		Extras: PlaygroundExtras{
 			"intFromInt":    10,
 			"intFromFloat":  32.0,
@@ -44,11 +44,11 @@ func TestPlayground_Extras_GetInt(t *testing.T) {
 
 func TestPlayground_Extras_GetString(t *testing.T) {
 	p := Playground{
-		Id:     uuid.NewV4().String(),
-		Domain: "localhost",
+		Id:                       uuid.NewV4().String(),
+		Domain:                   "localhost",
 		DefaultDinDInstanceImage: "franel/dind",
 		AllowWindowsInstances:    false,
-		DefaultSessionDuration:   time.Hour * 4,
+		DefaultSessionDuration:   time.Hour * 24,
 		Extras: PlaygroundExtras{
 			"stringFromInt":    10,
 			"stringFromFloat":  32.3,
@@ -82,11 +82,11 @@ func TestPlayground_Extras_GetString(t *testing.T) {
 
 func TestPlayground_Extras_GetDuration(t *testing.T) {
 	p := Playground{
-		Id:     uuid.NewV4().String(),
-		Domain: "localhost",
+		Id:                       uuid.NewV4().String(),
+		Domain:                   "localhost",
 		DefaultDinDInstanceImage: "franel/dind",
 		AllowWindowsInstances:    false,
-		DefaultSessionDuration:   time.Hour * 4,
+		DefaultSessionDuration:   time.Hour * 24,
 		Extras: PlaygroundExtras{
 			"durationFromInt":      10,
 			"durationFromFloat":    32.3,
@@ -111,7 +111,7 @@ func TestPlayground_Extras_GetDuration(t *testing.T) {
 
 	v, found = p2.Extras.GetDuration("durationFromString")
 	assert.True(t, found)
-	assert.Equal(t, time.Hour*4, v)
+	assert.Equal(t, time.Hour*24, v)
 
 	v, found = p2.Extras.GetDuration("durationFromDuration")
 	assert.True(t, found)

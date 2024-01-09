@@ -1,9 +1,13 @@
 package pwd
 
 import (
+	"errors"
+
 	"github.com/play-with-docker/play-with-docker/pwd/types"
 	"github.com/play-with-docker/play-with-docker/storage"
 )
+
+var userBannedError = errors.New("User is banned")
 
 func (p *pwd) UserNewLoginRequest(providerName string) (*types.LoginRequest, error) {
 	req := &types.LoginRequest{Id: p.generator.NewId(), Provider: providerName}
@@ -40,9 +44,12 @@ func (p *pwd) UserLogin(loginRequest *types.LoginRequest, user *types.User) (*ty
 	return u, nil
 }
 func (p *pwd) UserGet(id string) (*types.User, error) {
-	if user, err := p.storage.UserGet(id); err != nil {
+	var user *types.User
+	var err error
+	if user, err = p.storage.UserGet(id); err != nil {
 		return nil, err
-	} else {
-		return user, nil
+	} else if user.IsBanned {
+		return user, userBannedError
 	}
+	return user, nil
 }

@@ -15,7 +15,7 @@ func (p *pwd) PlaygroundNew(playground types.Playground) (*types.Playground, err
 		return nil, err
 	}
 
-	p.event.Emit(event.PLAYGROUND_NEW, playground.Id)
+	p.event.Emit(event.PLAYGROUND_NEW, playground.Id+" "+playground.Domain)
 	return &playground, nil
 }
 

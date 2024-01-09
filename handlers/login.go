@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
+	"os"
 	"strings"
 
 	"golang.org/x/oauth2"
 
-	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
-	fb "github.com/huandu/facebook"
 	"github.com/play-with-docker/play-with-docker/config"
 	"github.com/play-with-docker/play-with-docker/pwd/types"
 	uuid "github.com/satori/go.uuid"
@@ -25,6 +23,7 @@ func LoggedInUser(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+
 	user, err := core.UserGet(cookie.Id)
 	if err != nil {
 		log.Printf("Couldn't get user with id %s. Got: %v\n", cookie.Id, err)
@@ -43,7 +42,7 @@ func ListProviders(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	providers := []string{}
-	for name, _ := range config.Providers[playground.Id] {
+	for name := range config.Providers[playground.Id] {
 		providers = append(providers, name)
 	}
 	json.NewEncoder(rw).Encode(providers)
@@ -73,15 +72,20 @@ func Login(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	scheme := "http"
-	if req.TLS != nil {
-		scheme = "https"
+	if playground.AuthRedirectBase != "" {
+		provider.RedirectURL = fmt.Sprintf("%s/oauth/providers/%s/callback", playground.AuthRedirectBase, providerName)
+	} else {
+		scheme := "http"
+		if req.TLS != nil {
+			scheme = "https"
+		}
+		host := "localhost"
+		if req.Host != "" {
+			host = req.Host
+		}
+		provider.RedirectURL = fmt.Sprintf("%s://%s/oauth/providers/%s/callback", scheme, host, providerName)
 	}
-	host := "localhost"
-	if req.Host != "" {
-		host = req.Host
-	}
-	provider.RedirectURL = fmt.Sprintf("%s://%s/oauth/providers/%s/callback", scheme, host, providerName)
+
 	url := provider.AuthCodeURL(loginRequest.Id, oauth2.SetAuthURLParam("nonce", uuid.NewV4().String()))
 
 	http.Redirect(rw, req, url, http.StatusFound)
@@ -117,7 +121,7 @@ func LoginCallback(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := req.Context()
-	tok, err := provider.Exchange(ctx, code)
+	_, err = provider.Exchange(ctx, code)
 	if err != nil {
 		log.Printf("Could not exchage code for access token for provider %s. Got: %v\n", providerName, err)
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -125,71 +129,6 @@ func LoginCallback(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	user := &types.User{Provider: providerName}
-	if providerName == "github" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: tok.AccessToken},
-		)
-		tc := oauth2.NewClient(ctx, ts)
-		client := github.NewClient(tc)
-		u, _, err := client.Users.Get(ctx, "")
-		if err != nil {
-			log.Printf("Could not get user from github. Got: %v\n", err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		user.ProviderUserId = strconv.Itoa(u.GetID())
-		user.Name = u.GetName()
-		user.Avatar = u.GetAvatarURL()
-		user.Email = u.GetEmail()
-	} else if providerName == "facebook" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: tok.AccessToken},
-		)
-		tc := oauth2.NewClient(ctx, ts)
-		session := &fb.Session{
-			Version:    "v2.10",
-			HttpClient: tc,
-		}
-		p := fb.Params{}
-		p["fields"] = "email,name,picture"
-		res, err := session.Get("/me", p)
-		if err != nil {
-			log.Printf("Could not get user from facebook. Got: %v\n", err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		user.ProviderUserId = res.Get("id").(string)
-		user.Name = res.Get("name").(string)
-		user.Avatar = res.Get("picture.data.url").(string)
-		user.Email = res.Get("email").(string)
-	} else if providerName == "docker" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: tok.AccessToken},
-		)
-		tc := oauth2.NewClient(ctx, ts)
-
-		endpoint := getDockerEndpoint(playground)
-		resp, err := tc.Get(fmt.Sprintf("https://%s/api/id/v1/openid/userinfo", endpoint))
-		if err != nil {
-			log.Printf("Could not get user from docker. Got: %v\n", err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		userInfo := map[string]string{}
-		if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-			log.Printf("Could not decode user info. Got: %v\n", err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		user.ProviderUserId = userInfo["sub"]
-		user.Name = userInfo["preferred_username"]
-		user.Email = userInfo["email"]
-		// Since DockerID doesn't return a user avatar, we try with twitter through avatars.io
-		// Worst case we get a generic avatar
-		user.Avatar = fmt.Sprintf("https://avatars.io/twitter/%s", user.Name)
-	}
 
 	user, err = core.UserLogin(loginRequest, user)
 	if err != nil {
@@ -245,9 +184,9 @@ func getParentDomain(host string) string {
 	return host
 }
 
-func getDockerEndpoint(p *types.Playground) string {
-	if len(p.DockerHost) > 0 {
-		return p.DockerHost
+func getCryeyeEndpoint(p *types.Playground) string {
+	if len(p.CryeyeHost) > 0 {
+		return p.CryeyeHost
 	}
-	return "id.docker.com"
+	return os.Getenv("CRYEYE_HOST")
 }

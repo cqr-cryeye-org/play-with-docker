@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"io/fs"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/gorilla/mux"
@@ -34,12 +34,17 @@ func Home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	index := filepath.Join("./www", playground.AssetsDir, "/index.html")
-	if _, err := os.Stat(index); os.IsNotExist(err) {
-		index = "./www/default/index.html"
+	index, err := fs.ReadFile(staticFiles, filepath.Join(playground.AssetsDir, "/index.html"))
+	if err != nil {
+		index, err = fs.ReadFile(staticFiles, "default/index.html")
 	}
 
-	http.ServeFile(w, r, index)
+	if err != nil {
+		w.WriteHeader(http.StatusFound)
+		return
+
+	}
+	w.Write(index)
 }
 
 func Landing(rw http.ResponseWriter, req *http.Request) {

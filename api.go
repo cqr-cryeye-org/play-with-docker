@@ -1,10 +1,6 @@
 package main
 
 import (
-	"log"
-	"os"
-	"time"
-
 	"github.com/play-with-docker/play-with-docker/config"
 	"github.com/play-with-docker/play-with-docker/docker"
 	"github.com/play-with-docker/play-with-docker/event"
@@ -17,6 +13,9 @@ import (
 	"github.com/play-with-docker/play-with-docker/scheduler"
 	"github.com/play-with-docker/play-with-docker/scheduler/task"
 	"github.com/play-with-docker/play-with-docker/storage"
+	"log"
+	"os"
+	"time"
 )
 
 func main() {
@@ -25,7 +24,7 @@ func main() {
 	e := initEvent()
 	s := initStorage()
 	df := initDockerFactory(s)
-	kf := initK8sFactory(s)
+	//kf := initK8sFactory(s)
 
 	ipf := provisioner.NewInstanceProvisionerFactory(provisioner.NewWindowsASG(df, s), provisioner.NewDinD(id.XIDGenerator{}, df, s))
 	sp := provisioner.NewOverlaySessionProvisioner(df)
@@ -37,8 +36,8 @@ func main() {
 		task.NewCheckSwarmPorts(e, df),
 		task.NewCheckSwarmStatus(e, df),
 		task.NewCollectStats(e, df, s),
-		task.NewCheckK8sClusterStatus(e, kf),
-		task.NewCheckK8sClusterExposedPorts(e, kf),
+		//task.NewCheckK8sClusterStatus(e, kf),
+		//task.NewCheckK8sClusterExposedPorts(e, kf),
 	}
 	sch, err := scheduler.NewScheduler(tasks, s, e, core)
 	if err != nil {
@@ -47,14 +46,34 @@ func main() {
 
 	sch.Start()
 
-	d, err := time.ParseDuration("4h")
+	d, err := time.ParseDuration("24h")
 	if err != nil {
 		log.Fatalf("Cannot parse duration Got: %v", err)
 	}
 
-	playground := types.Playground{Domain: config.PlaygroundDomain, DefaultDinDInstanceImage: "franela/dind", AvailableDinDInstanceImages: []string{"franela/dind"}, AllowWindowsInstances: config.NoWindows, DefaultSessionDuration: d, Tasks: []string{".*"}, Extras: map[string]interface{}{"LoginRedirect": "http://localhost:3000"}}
-	if _, err := core.PlaygroundNew(playground); err != nil {
-		log.Fatalf("Cannot create default playground. Got: %v", err)
+	// Creating a new localhost playground on http://localhost/
+	if _, err := core.PlaygroundNew(config.LocalPlayground); err != nil {
+		log.Fatalf("Cannot create localhost playground. Got: %v", err)
+	}
+
+	// Creating a new playground
+	if config.PlaygroundDomain != "" {
+		playground := types.Playground{
+			Domain:                      config.PlaygroundDomain,
+			DefaultDinDInstanceImage:    config.DefaultDinDInstanceImage,
+			AvailableDinDInstanceImages: []string{config.DefaultDinDInstanceImage},
+			AllowWindowsInstances:       config.NoWindows,
+			DefaultSessionDuration:      d,
+			Tasks:                       []string{".*"},
+			Extras:                      map[string]interface{}{"LoginRedirect": "https://" + config.PlaygroundDomain + "/"},
+			CryeyeClientID:              config.CryeyeClientID,
+			CryeyeClientSecret:          config.CryeyeClientSecret,
+			Privileged:                  true,
+		}
+
+		if _, err := core.PlaygroundNew(playground); err != nil {
+			log.Fatalf("Cannot create playground for %v. Got: %v", config.PlaygroundDomain, err)
+		}
 	}
 
 	handlers.Bootstrap(core, e)

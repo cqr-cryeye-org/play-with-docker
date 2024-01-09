@@ -29,6 +29,7 @@ type WindowsInstance struct {
 
 type InstanceConfig struct {
 	ImageName      string
+	Privileged     bool
 	Hostname       string
 	ServerCert     []byte
 	ServerKey      []byte
@@ -39,4 +40,6 @@ type InstanceConfig struct {
 	PlaygroundFQDN string
 	Type           string
 	DindVolumeSize string
+	Envs           []string
+	Networks       []string
 }

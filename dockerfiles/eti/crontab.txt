@@ -1,0 +1,1 @@
+*/30 * * * * python3 /usr/scripts/updater.py >> /var/log/script.log

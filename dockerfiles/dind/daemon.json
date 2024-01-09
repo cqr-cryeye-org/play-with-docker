@@ -2,10 +2,20 @@
     "experimental": true,
     "debug": true,
     "log-level": "info",
-    "insecure-registries": ["127.0.0.1"],
-    "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"],
+    "insecure-registries": [
+        "127.0.0.1",
+        "registry:52021",
+        "registry:443",
+        "registry.local:52021",
+        "registry.local:443",
+        "10.0.168.24:443"
+    ],
+    "hosts": [
+        "unix:///var/run/docker.sock",
+        "tcp://0.0.0.0:2375"
+    ],
     "tls": DOCKER_TLSENABLE,
-    "tlscacert": "DOCKER_TLSCACERT",
-    "tlscert": "DOCKER_TLSCERT",
-    "tlskey": "DOCKER_TLSKEY"
+    "tlscacert": "",
+    "tlscert": "",
+    "tlskey": ""
 }

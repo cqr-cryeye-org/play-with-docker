@@ -2,7 +2,10 @@ package config
 
 import (
 	"flag"
+	"github.com/play-with-docker/play-with-docker/pwd/types"
+	"os"
 	"regexp"
+	"time"
 
 	"github.com/gorilla/securecookie"
 
@@ -22,20 +25,43 @@ const (
 var NameFilter = regexp.MustCompile(PWDHostPortGroupRegex)
 var AliasFilter = regexp.MustCompile(AliasPortGroupRegex)
 
-var PortNumber, SessionsFile, PWDContainerName, L2ContainerName, L2Subdomain, HashKey, SSHKeyPath, L2RouterIP, CookieHashKey, CookieBlockKey string
-var UseLetsEncrypt, ExternalDindVolume, NoWindows bool
-var LetsEncryptCertsDir string
+var (
+	PWDContainerName         string
+	L2ContainerName          string
+	SessionsFile             string
+	L2Subdomain              string
+	HashKey                  string
+	SSHKeyPath               string
+	L2RouterIP               string
+	CookieHashKey            string
+	CookieBlockKey           string
+	PortNumber               string
+	LetsEncryptCertsDir      string
+	AdminToken               string
+	PlaygroundDomain         string
+	SegmentId                string
+	DefaultDinDInstanceImage string
+	CryeyeClientID           string
+	CryeyeClientSecret       string
+)
+var (
+	ExternalDindVolume bool
+	NoWindows          bool
+	UseLetsEncrypt     bool
+	ForceTLS           bool
+	// Unsafe enables a number of unsafe features when set. It is principally
+	// intended to be used in development. For example, it allows the caller to
+	// specify the Docker networks to join.
+	Unsafe bool
+)
+
 var MaxLoadAvg float64
-var ForceTLS bool
 var SecureCookie *securecookie.SecureCookie
-var AdminToken string
 
-var PlaygroundDomain string
-
-var SegmentId string
-
-// TODO move this to a sync map so it can be updated on demand when the configuration for a playground changes
+// Providers TODO move this to a sync map so it can be updated on demand when the configuration for a playground changes
 var Providers = map[string]map[string]*oauth2.Config{}
+
+var LocalPlayground types.Playground
 
 func ParseFlags() {
 	flag.StringVar(&LetsEncryptCertsDir, "letsencrypt-certs-dir", "/certs", "Path where let's encrypt certs will be stored")
@@ -50,18 +76,29 @@ func ParseFlags() {
 	flag.StringVar(&HashKey, "hash_key", "salmonrosado", "Hash key to use for cookies")
 	flag.BoolVar(&NoWindows, "win-disable", false, "Disable windows instances")
 	flag.BoolVar(&ExternalDindVolume, "dind-external-volume", false, "Use external dind volume though XFS volume driver")
-	flag.Float64Var(&MaxLoadAvg, "maxload", 100, "Maximum allowed load average before failing ping requests")
+	flag.Float64Var(&MaxLoadAvg, "max-load", 100, "Maximum allowed load average before failing ping requests")
 	flag.StringVar(&SSHKeyPath, "ssh_key_path", "", "SSH Private Key to use")
-	flag.StringVar(&CookieHashKey, "cookie-hash-key", "", "Hash key to use to validate cookies")
-	flag.StringVar(&CookieBlockKey, "cookie-block-key", "", "Block key to use to encrypt cookies")
-
-	flag.StringVar(&PlaygroundDomain, "playground-domain", "localhost", "Domain to use for the playground")
+	flag.StringVar(&CookieHashKey, "cookie-hash-key", os.Getenv("COOKIE_HASH_KEY"), "Hash key to use to validate cookies")
+	flag.StringVar(&CookieBlockKey, "cookie-block-key", os.Getenv("COOKIE_BLOCK_KEY"), "Block key to use to encrypt cookies")
+	flag.StringVar(&PlaygroundDomain, "playground-domain", os.Getenv("PLAYGROUND_DOMAIN"), "Domain to use for the playground")
 	flag.StringVar(&AdminToken, "admin-token", "", "Token to validate admin user for admin endpoints")
-
 	flag.StringVar(&SegmentId, "segment-id", "", "Segment id to post metrics")
-
+	flag.StringVar(&CryeyeClientID, "cryeye-client-id", os.Getenv("CRYEYE_CLIENT_ID"), "Client ID for oauth authorization")
+	flag.StringVar(&CryeyeClientSecret, "cryeye-client-secret", os.Getenv("CRYEYE_CLIENT_SECRET"), "Client secret for oauth authorization")
+	flag.BoolVar(&Unsafe, "unsafe", os.Getenv("PWD_UNSAFE") == "true", "Operate in unsafe mode")
 	flag.Parse()
 
 	SecureCookie = securecookie.New([]byte(CookieHashKey), []byte(CookieBlockKey))
+	DefaultDinDInstanceImage = "cryeye/dind"
 
+	LocalPlayground = types.Playground{
+		Domain:                      "localhost",
+		DefaultDinDInstanceImage:    DefaultDinDInstanceImage,
+		AvailableDinDInstanceImages: []string{DefaultDinDInstanceImage},
+		AllowWindowsInstances:       NoWindows,
+		DefaultSessionDuration:      time.Hour * 24,
+		Tasks:                       []string{".*"},
+		Extras:                      map[string]interface{}{"LoginRedirect": "http://localhost/"},
+		Privileged:                  true,
+	}
 }
