@@ -78,6 +78,7 @@ func (p *pwd) SessionNew(ctx context.Context, config types.SessionConfig) (*type
 	s.Stack = config.Stack
 	s.UserId = config.UserId
 	s.PlaygroundId = config.Playground.Id
+	s.CqrUrl = config.CqrUrl
 
 	if s.Stack != "" {
 		s.Ready = false
@@ -210,9 +211,8 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 	}
 
 	dockerClient.DindDaemonPing(i.Name)
-
 	file := fmt.Sprintf("/var/run/pwd/uploads/%s", fileName)
-	cmd := fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
+	cmd := fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && CRYEYE_RESULT_FILE=%s docker stack deploy -c %s %s", file, s.CqrUrl, file, s.StackName)
 
 	code, err := dockerClient.ExecAttach(i.Name, []string{"sh", "-c", cmd}, &w)
 	if err != nil {

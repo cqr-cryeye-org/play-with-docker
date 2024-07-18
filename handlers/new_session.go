@@ -45,7 +45,7 @@ func NewSession(rw http.ResponseWriter, req *http.Request) {
 	stack := req.Form.Get("stack")
 	stackName := req.Form.Get("stack_name")
 	imageName := req.Form.Get("image_name")
-
+	cqr_url := req.Form.Get("cqr_url")
 	if stack != "" {
 		stack = formatStack(stack)
 		if ok, err := stackExists(stack); err != nil {
@@ -77,7 +77,7 @@ func NewSession(rw http.ResponseWriter, req *http.Request) {
 		duration = playground.DefaultSessionDuration
 	}
 
-	sConfig := types.SessionConfig{Playground: playground, UserId: userId, Duration: duration, Stack: stack, StackName: stackName, ImageName: imageName}
+	sConfig := types.SessionConfig{Playground: playground, UserId: userId, Duration: duration, Stack: stack, CqrUrl: cqr_url, StackName: stackName, ImageName: imageName}
 	s, err := core.SessionNew(context.Background(), sConfig)
 	if err != nil {
 		if provisioner.OutOfCapacity(err) {

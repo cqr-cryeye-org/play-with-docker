@@ -11,6 +11,7 @@ type SessionConfig struct {
 	Stack      string
 	StackName  string
 	ImageName  string
+	CqrUrl     string
 }
 
 type Session struct {
@@ -25,4 +26,5 @@ type Session struct {
 	Host         string    `json:"host" bson:"host"`
 	UserId       string    `json:"user_id" bson:"user_id"`
 	PlaygroundId string    `json:"playground_id" bson:"playground_id"`
+	CqrUrl       string    `json:"cqr_url" bson:"cqr_url"`
 }
